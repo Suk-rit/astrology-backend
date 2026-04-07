@@ -91,6 +91,11 @@ def get_planet_data(chart):
     return planet_data
 
 
+
+
+
+
+
 # -----------------------------
 # HOUSES (FIXED)
 # -----------------------------
@@ -138,6 +143,174 @@ def get_nakshatra(moon):
         return {"name": None, "pada": None}
 
 
+
+def get_nakshatra_safe(moon):
+    try:
+        if moon is None:
+            return {"name": None, "pada": None, "error": "Moon not found"}
+
+        result = get_nakshatra(moon)
+
+        if result["name"] is None:
+            return {"name": None, "pada": None, "error": "Calculation failed"}
+
+        return result
+
+    except Exception as e:
+        return {"name": None, "pada": None, "error": str(e)}
+
+
+NAKSHATRA_LORDS = [
+    "KETU", "VENUS", "SUN", "MOON", "MARS",
+    "RAHU", "JUPITER", "SATURN", "MERCURY"
+] * 3
+
+DASHA_YEARS = {
+    "KETU": 7, "VENUS": 20, "SUN": 6, "MOON": 10,
+    "MARS": 7, "RAHU": 18, "JUPITER": 16,
+    "SATURN": 19, "MERCURY": 17
+}
+
+NAKSHATRA_LIST = [
+    "Ashwini","Bharani","Krittika","Rohini","Mrigashira",
+    "Ardra","Punarvasu","Pushya","Ashlesha","Magha",
+    "Purva Phalguni","Uttara Phalguni","Hasta","Chitra","Swati",
+    "Vishakha","Anuradha","Jyeshtha","Mula","Purva Ashadha",
+    "Uttara Ashadha","Shravana","Dhanishta","Shatabhisha",
+    "Purva Bhadrapada","Uttara Bhadrapada","Revati"
+]
+
+def calculate_dasha(nakshatra_name):
+    try:
+        if nakshatra_name not in NAKSHATRA_LIST:
+            return []
+
+        index = NAKSHATRA_LIST.index(nakshatra_name)
+        sequence = NAKSHATRA_LORDS[index:] + NAKSHATRA_LORDS[:index]
+
+        dasha = []
+        age = 0
+
+        for planet in sequence:
+            years = DASHA_YEARS.get(planet, 0)
+
+            dasha.append({
+                "planet": planet,
+                "start_age": age,
+                "end_age": age + years
+            })
+
+            age += years
+
+        return dasha
+
+    except:
+        return []
+
+
+def extract_facts(planets):
+    facts = {}
+
+    try:
+        for planet, data in planets.items():
+            house = data.get("house")
+
+            if house:
+                facts[f"{planet}_house"] = house
+
+        return facts
+
+    except:
+        return {}
+
+
+
+def love_rules(planets):
+    insights = []
+
+    try:
+        venus = planets.get("VENUS", {}).get("house")
+        moon = planets.get("MOON", {}).get("house")
+        saturn = planets.get("SATURN", {}).get("house")
+
+        if venus == 7:
+            insights.append("Strong relationship and marriage potential")
+
+        if saturn == 7:
+            insights.append("Delay or maturity in relationships")
+
+        if moon == 1:
+            insights.append("Emotionally sensitive in love life")
+
+    except:
+        pass
+
+    return insights
+
+
+def career_rules(planets):
+    insights = []
+
+    try:
+        saturn = planets.get("SATURN", {}).get("house")
+        sun = planets.get("SUN", {}).get("house")
+        jupiter = planets.get("JUPITER", {}).get("house")
+
+        if saturn == 10:
+            insights.append("Career success through discipline")
+
+        if sun == 10:
+            insights.append("Leadership qualities in career")
+
+        if jupiter == 10:
+            insights.append("Respect and knowledge-driven career")
+
+    except:
+        pass
+
+    return insights
+
+
+def finance_rules(planets):
+    insights = []
+
+    try:
+        jupiter = planets.get("JUPITER", {}).get("house")
+        if jupiter == 2:
+            insights.append("Strong wealth accumulation potential")
+
+    except:
+        pass
+
+    return insights
+
+def health_rules(planets):
+    insights = []
+
+    try:
+        saturn = planets.get("SATURN", {}).get("house")
+        mars = planets.get("MARS", {}).get("house")
+
+        if saturn == 6:
+            insights.append("Health requires discipline and care")
+
+        if mars == 6:
+            insights.append("Possibility of minor injuries or inflammation")
+
+    except:
+        pass
+
+    return insights
+
+def generate_interpretation(planets):
+    return {
+        "love": love_rules(planets),
+        "career": career_rules(planets),
+        "finance": finance_rules(planets),
+        "health": health_rules(planets)
+    }
+
+
 # -----------------------------
 # ROUTES
 # -----------------------------
@@ -160,16 +333,24 @@ def generate_kundli(data: KundliInput):
         moon = chart.get(const.MOON)
         asc = chart.get(const.ASC)
 
+        planets = get_planet_data(chart)
+        nakshatra = get_nakshatra_safe(moon)
+
+        dasha = calculate_dasha(nakshatra["name"]) if nakshatra["name"] else []
+
         return {
-            "basic_info": {
-                "sun_sign": sun.sign if sun else None,
-                "moon_sign": moon.sign if moon else None,
-                "ascendant": asc.sign if asc else None
-            },
-            "nakshatra": get_nakshatra(moon),
-            "planets": get_planet_data(chart),
-            "houses": get_houses(chart)
-        }
+        "basic_info": {
+        "sun_sign": sun.sign if sun else None,
+        "moon_sign": moon.sign if moon else None,
+        "ascendant": asc.sign if asc else None
+        },
+        "nakshatra": nakshatra,
+        "planets": planets,
+        "houses": get_houses(chart),
+        "dasha": dasha,
+        "facts": extract_facts(planets),
+        "interpretation": generate_interpretation(planets)
+}
 
     except Exception as e:
         return {
